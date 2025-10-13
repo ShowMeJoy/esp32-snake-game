@@ -6,7 +6,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "font8x8_basic.h"
 #include "ssd1306.h"
@@ -16,27 +15,9 @@
 #define ADC_Y_CHANNEL ADC_CHANNEL_7 // GPIO35
 #define BTN_GPIO 32 
 
-#define LED_PIN GPIO_NUM_2
-
-#define TAG "SSD1306"
-
-// void init_i2c_if_needed(SSD1306_t *dev) {
-// #if CONFIG_I2C_INTERFACE
-//     ESP_LOGI(TAG, "INTERFACE is i2c");
-//     ESP_LOGI(TAG, "CONFIG_SDA_GPIO=%d", CONFIG_SDA_GPIO);
-//     ESP_LOGI(TAG, "CONFIG_SCL_GPIO=%d", CONFIG_SCL_GPIO);
-//     ESP_LOGI(TAG, "CONFIG_RESET_GPIO=%d", CONFIG_RESET_GPIO);
-
-//     i2c_master_init(dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
-// #endif // CONFIG_I2C_INTERFACE
-// }
-
-
-
 void app_main(void) {
     SSD1306_t dev = {0};
     i2c_master_init(&dev, 21, 22, -1);
-    // init_i2c_if_needed(&dev);
     ssd1306_init(&dev, 128, 64);
     ssd1306_clear_screen(&dev, 0);
 
@@ -61,13 +42,6 @@ void app_main(void) {
         .pull_down_en = GPIO_PULLDOWN_DISABLE
     };
     gpio_config(&io_conf_in);
-
-    // gpio_config_t io_conf_out = {
-    //     .pin_bit_mask = (1ULL << LED_PIN),
-    //     .mode = GPIO_MODE_OUTPUT,
-    // };
-    // gpio_config(&io_conf_out);
-
 
     int position_y = 0;
     int position_x = 0;
@@ -99,7 +73,7 @@ void app_main(void) {
 
         if (x >= 3500) {
             position_x += 8;
-            if (position_x > 128) position_x = 0;
+            if (position_x >= 128) position_x = 0;
             ssd1306_clear_screen(&dev, 0);
         }
 
