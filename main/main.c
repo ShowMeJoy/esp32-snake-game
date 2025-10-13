@@ -4,6 +4,10 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "font8x8_basic.h"
 #include "ssd1306.h"
 
@@ -16,22 +20,23 @@
 
 #define TAG "SSD1306"
 
-void init_i2c_if_needed(SSD1306_t *dev) {
-#if CONFIG_I2C_INTERFACE
-    ESP_LOGI(TAG, "INTERFACE is i2c");
-    ESP_LOGI(TAG, "CONFIG_SDA_GPIO=%d", CONFIG_SDA_GPIO);
-    ESP_LOGI(TAG, "CONFIG_SCL_GPIO=%d", CONFIG_SCL_GPIO);
-    ESP_LOGI(TAG, "CONFIG_RESET_GPIO=%d", CONFIG_RESET_GPIO);
+// void init_i2c_if_needed(SSD1306_t *dev) {
+// #if CONFIG_I2C_INTERFACE
+//     ESP_LOGI(TAG, "INTERFACE is i2c");
+//     ESP_LOGI(TAG, "CONFIG_SDA_GPIO=%d", CONFIG_SDA_GPIO);
+//     ESP_LOGI(TAG, "CONFIG_SCL_GPIO=%d", CONFIG_SCL_GPIO);
+//     ESP_LOGI(TAG, "CONFIG_RESET_GPIO=%d", CONFIG_RESET_GPIO);
 
-    i2c_master_init(dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
-#endif // CONFIG_I2C_INTERFACE
-}
+//     i2c_master_init(dev, CONFIG_SDA_GPIO, CONFIG_SCL_GPIO, CONFIG_RESET_GPIO);
+// #endif // CONFIG_I2C_INTERFACE
+// }
 
 
 
 void app_main(void) {
     SSD1306_t dev = {0};
-    init_i2c_if_needed(&dev);
+    i2c_master_init(&dev, 21, 22, -1);
+    // init_i2c_if_needed(&dev);
     ssd1306_init(&dev, 128, 64);
     ssd1306_clear_screen(&dev, 0);
 
@@ -57,14 +62,16 @@ void app_main(void) {
     };
     gpio_config(&io_conf_in);
 
-    gpio_config_t io_conf_out = {
-        .pin_bit_mask = (1ULL << LED_PIN),
-        .mode = GPIO_MODE_OUTPUT,
-    };
-    gpio_config(&io_conf_out);
+    // gpio_config_t io_conf_out = {
+    //     .pin_bit_mask = (1ULL << LED_PIN),
+    //     .mode = GPIO_MODE_OUTPUT,
+    // };
+    // gpio_config(&io_conf_out);
 
 
-    int position = 0;
+    int position_y = 0;
+    int position_x = 0;
+    const char* sign = "S";
     while (1) {
         int x, y;
         
@@ -72,16 +79,34 @@ void app_main(void) {
         adc_oneshot_read(adc1_handle, ADC_Y_CHANNEL, &y);
         int button = gpio_get_level(BTN_GPIO);
 
-        if (y <= 2000) {
-            position += 1;
-            if (position > 8) position = 0;
+        if (y <= 3400) {
+            position_y -= 1;
+            if (position_y < 0) position_y = 0;
             ssd1306_clear_screen(&dev, 0);
         }
 
-        ssd1306_display_text(&dev, position, "Hello", 6, 0);
+        if (y >= 3600) {
+            position_y += 1;
+            if (position_y >= 8) position_y = 0;
+            ssd1306_clear_screen(&dev, 0);
+        }
 
+        if (x <= 3300) {
+            position_x -= 8;
+            if (position_x < 0) position_x = 0;
+            ssd1306_clear_screen(&dev, 0);
+        }
 
-        ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d", x, y, button);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (x >= 3500) {
+            position_x += 8;
+            if (position_x > 128) position_x = 0;
+            ssd1306_clear_screen(&dev, 0);
+        }
+
+        ssd1306_display_text_box1(&dev, position_y, position_x, sign, 1, 1, false, 0);
+
+        printf("x = %d, y = %d\n", position_x, position_y);
+        ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
