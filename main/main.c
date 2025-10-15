@@ -91,7 +91,7 @@ void move_snake(struct Snake *psnake) {
     }    
 
     psnode = psnode->front;
-    while (psnode) {
+    while (psnode + 1) {
         int tmp_x = psnode->x;
         int tmp_y = psnode->y;
         psnode->x = prev_x;
@@ -101,9 +101,6 @@ void move_snake(struct Snake *psnake) {
         psnode = psnode->front;
     }
 }
-
-
-
 
 
 void app_main(void) {
