@@ -61,7 +61,7 @@ struct Snake* initsnake() {
     n1->front = n2;
     n2->front = n3;
     n3->front = n4;
-    n4->front = NULL; // Ранее тут было NULL, вероятно это было важно
+    n4->front = NULL; 
 
     psnake->head = n1;
     return psnake;
@@ -78,13 +78,17 @@ void draw_snake(SSD1306_t *dev, struct Snake *psnake, const char *sign) {
     }
 }
 
-void move_snake(struct Snake *psnake, int dx, int dy) {
+void move_snake(struct Snake *psnake) {
     struct SnakeNode *psnode = GetSnakeTail(psnake);
     int prev_x = psnode->x;
     int prev_y = psnode->y;
 
-    psnode->x = dx;
-    psnode->y = dy;
+    switch (psnake->dir) {
+        case DIR_UP: psnode->y += 1; break;
+        case DIR_DOWN: psnode->y -= 1; break;
+        case DIR_LEFT: psnode->x -= 8; break;
+        case DIR_RIGHT: psnode->x += 8; break;
+    }    
 
     psnode = psnode->front;
     while (psnode) {
@@ -98,14 +102,16 @@ void move_snake(struct Snake *psnake, int dx, int dy) {
     }
 }
 
+
+
+
+
 void app_main(void) {
     char* sign = "S";
     SSD1306_t dev = {0};
     i2c_master_init(&dev, 21, 22, -1);
     ssd1306_init(&dev, 128, 64);
     ssd1306_clear_screen(&dev, 0);
-
-    int dx = 0, dy = 0;
 
     // Joystick
     adc_oneshot_unit_handle_t adc1_handle;
@@ -128,7 +134,6 @@ void app_main(void) {
     gpio_config(&io_conf_in);
 
     struct Snake *psnake = initsnake();
-    
 
     while (1) {
         
@@ -137,30 +142,22 @@ void app_main(void) {
         adc_oneshot_read(adc1_handle, ADC_Y_CHANNEL, &y);
         int button = gpio_get_level(BTN_GPIO);
         if (y <= 3400) {
-            dy -= 1;
-            if (dy < 0) dy = 0;
-            ssd1306_clear_screen(&dev, 0);
+            psnake->dir = DIR_DOWN;
         }
         if (y >= 3600) {
-            dy += 1;
-            if (dy >= 8) dy = 0;
-            ssd1306_clear_screen(&dev, 0);
+            psnake->dir = DIR_UP;
         }
         if (x <= 3300) {
-            dx -= 8;
-            if (dx < 0) dx = 0;
-            ssd1306_clear_screen(&dev, 0);
+            psnake->dir = DIR_LEFT;
         }
         if (x >= 3500) {
-            dx += 8;
-            if (dx >= 128) dx = 0;
-            ssd1306_clear_screen(&dev, 0);
+            psnake->dir = DIR_RIGHT;
         }   
 
-        move_snake(psnake, dx, dy);
+        move_snake(psnake);
+        ssd1306_clear_screen(&dev, 0);
         draw_snake(&dev, psnake, sign);
         ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
-        printf("x = %d, y = %d\n", dx, dy);
     
 
         vTaskDelay(pdMS_TO_TICKS(500));
