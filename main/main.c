@@ -41,7 +41,7 @@ struct Snake* initsnake() {
     struct Snake *psnake = malloc(sizeof(struct Snake));
     if (!psnake) return NULL;
 
-    psnake->dir = DIR_LEFT;
+    psnake->dir = DIR_RIGHT;
     psnake->length = 4;
 
     struct SnakeNode *n1 = malloc(sizeof(struct SnakeNode));
@@ -91,7 +91,7 @@ void move_snake(struct Snake *psnake) {
     }    
 
     psnode = psnode->front;
-    while (psnode + 1) {
+    while (psnode) {
         int tmp_x = psnode->x;
         int tmp_y = psnode->y;
         psnode->x = prev_x;
@@ -102,26 +102,25 @@ void move_snake(struct Snake *psnake) {
     }
 }
 
+typedef struct JoystickHandle {
+    adc_oneshot_unit_handle_t adc_handle;
+} JoystickHandle;
 
-void app_main(void) {
-    char* sign = "S";
-    SSD1306_t dev = {0};
-    i2c_master_init(&dev, 21, 22, -1);
-    ssd1306_init(&dev, 128, 64);
-    ssd1306_clear_screen(&dev, 0);
+JoystickHandle joystick_conf(void) {
+    JoystickHandle joy;
 
-    // Joystick
-    adc_oneshot_unit_handle_t adc1_handle;
     adc_oneshot_unit_init_cfg_t init_cfg = {
         .unit_id = ADC_UNIT
     };
-    adc_oneshot_new_unit(&init_cfg, &adc1_handle);
+    adc_oneshot_new_unit(&init_cfg, &joy.adc_handle);
+
     adc_oneshot_chan_cfg_t channel_cfg = {
         .bitwidth = ADC_BITWIDTH_DEFAULT,
         .atten = ADC_ATTEN_DB_6
     };
-    adc_oneshot_config_channel(adc1_handle, ADC_X_CHANNEL, &channel_cfg);
-    adc_oneshot_config_channel(adc1_handle, ADC_Y_CHANNEL, &channel_cfg);
+    adc_oneshot_config_channel(joy.adc_handle, ADC_X_CHANNEL, &channel_cfg);
+    adc_oneshot_config_channel(joy.adc_handle, ADC_Y_CHANNEL, &channel_cfg);
+
     gpio_config_t io_conf_in = {
         .pin_bit_mask = 1ULL << BTN_GPIO,
         .mode = GPIO_MODE_INPUT,
@@ -130,32 +129,47 @@ void app_main(void) {
     };
     gpio_config(&io_conf_in);
 
+    return joy;
+}
+
+
+void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
+    int x, y;
+    adc_oneshot_read(joystick.adc_handle, ADC_X_CHANNEL, &x);
+    adc_oneshot_read(joystick.adc_handle, ADC_Y_CHANNEL, &y);
+    int button = gpio_get_level(BTN_GPIO);
+
+    if (y <= 3400) {
+        psnake->dir = DIR_DOWN;
+    }
+    if (y >= 3600) {
+        psnake->dir = DIR_UP;
+    }
+    if (x <= 3300) {
+        psnake->dir = DIR_LEFT;
+    }
+    if (x >= 3500) {
+        psnake->dir = DIR_RIGHT;
+    }   
+
+    ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
+}
+
+void app_main(void) {
+    char* sign = "S";
+    SSD1306_t dev = {0};
+    i2c_master_init(&dev, 21, 22, -1);
+    ssd1306_init(&dev, 128, 64);
+    ssd1306_clear_screen(&dev, 0);
+    JoystickHandle joystick = joystick_conf();
+
     struct Snake *psnake = initsnake();
 
     while (1) {
-        
-        int x, y;
-        adc_oneshot_read(adc1_handle, ADC_X_CHANNEL, &x);
-        adc_oneshot_read(adc1_handle, ADC_Y_CHANNEL, &y);
-        int button = gpio_get_level(BTN_GPIO);
-        if (y <= 3400) {
-            psnake->dir = DIR_DOWN;
-        }
-        if (y >= 3600) {
-            psnake->dir = DIR_UP;
-        }
-        if (x <= 3300) {
-            psnake->dir = DIR_LEFT;
-        }
-        if (x >= 3500) {
-            psnake->dir = DIR_RIGHT;
-        }   
-
+        joystick_moving(psnake, joystick);
         move_snake(psnake);
         ssd1306_clear_screen(&dev, 0);
         draw_snake(&dev, psnake, sign);
-        ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
-    
 
         vTaskDelay(pdMS_TO_TICKS(500));
     }
