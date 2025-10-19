@@ -25,7 +25,8 @@ enum Direction {
     DIR_UP,
     DIR_DOWN,
     DIR_LEFT,
-    DIR_RIGHT
+    DIR_RIGHT,
+    STOP
 };
 struct SnakeNode {
     int y;
@@ -88,10 +89,12 @@ void move_snake(struct Snake *psnake) {
         case DIR_DOWN: psnode->y -= 1; break;
         case DIR_LEFT: psnode->x -= 8; break;
         case DIR_RIGHT: psnode->x += 8; break;
+        case STOP: break;
     }    
 
     psnode = psnode->front;
     while (psnode) {
+        if (psnake->dir == STOP) break;
         int tmp_x = psnode->x;
         int tmp_y = psnode->y;
         psnode->x = prev_x;
@@ -132,25 +135,27 @@ JoystickHandle joystick_conf(void) {
     return joy;
 }
 
-
 void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
     int x, y;
     adc_oneshot_read(joystick.adc_handle, ADC_X_CHANNEL, &x);
     adc_oneshot_read(joystick.adc_handle, ADC_Y_CHANNEL, &y);
     int button = gpio_get_level(BTN_GPIO);
 
-    if (y <= 3400) {
+    if (y <= 3400 && (psnake->dir != DIR_UP)) {
         psnake->dir = DIR_DOWN;
     }
-    if (y >= 3600) {
+    if (y >= 3600 && (psnake->dir != DIR_DOWN)) {
         psnake->dir = DIR_UP;
     }
-    if (x <= 3300) {
+    if (x <= 3300 && (psnake->dir != DIR_RIGHT)) {
         psnake->dir = DIR_LEFT;
     }
-    if (x >= 3500) {
+    if (x >= 3500 && (psnake->dir != DIR_LEFT)) {
         psnake->dir = DIR_RIGHT;
     }   
+    if (!button) {
+        psnake->dir = STOP;
+    }
 
     ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
 }
