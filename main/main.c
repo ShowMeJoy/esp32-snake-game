@@ -6,6 +6,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "font8x8_basic.h"
 #include "ssd1306.h"
@@ -19,7 +21,7 @@
 
 #define MAX_LEN 16
 #define CELL_SIZE 8
-#define GetSnakeTail(s) ((s)->head->front)
+#define GetNextNode(s) ((s)->head->front)
 
 enum Direction {
     DIR_UP,
@@ -36,8 +38,20 @@ struct SnakeNode {
 struct Snake {
     int length;
     struct SnakeNode *head;
+    struct SnakeNode *tail;
     enum Direction dir;
 };
+struct Food {
+    int x;
+    int y;
+};
+
+struct SnakeNode* GetTail(struct Snake *psnake) {
+    struct SnakeNode *psnode = psnake->head;
+    while(psnode && psnode->front) psnode = psnode->front;
+    return psnode;
+}
+
 struct Snake* initsnake() {
     struct Snake *psnake = malloc(sizeof(struct Snake));
     if (!psnake) return NULL;
@@ -65,22 +79,13 @@ struct Snake* initsnake() {
     n4->front = NULL; 
 
     psnake->head = n1;
+    psnake->tail = n4;
     return psnake;
 }
 
-void draw_snake(SSD1306_t *dev, struct Snake *psnake, const char *sign) {
-    if (!psnake || !psnake->head) return;
-
-    struct SnakeNode *psnode = GetSnakeTail(psnake);
-
-    while (psnode) {
-        ssd1306_display_text_box1(dev, psnode->y, psnode->x, sign, 1, 1, false, 0);
-        psnode = psnode->front;
-    }
-}
 
 void move_snake(struct Snake *psnake) {
-    struct SnakeNode *psnode = GetSnakeTail(psnake);
+    struct SnakeNode *psnode = GetNextNode(psnake);
     int prev_x = psnode->x;
     int prev_y = psnode->y;
 
@@ -94,13 +99,27 @@ void move_snake(struct Snake *psnake) {
 
     psnode = psnode->front;
     while (psnode) {
-        if (psnake->dir == STOP) break;
         int tmp_x = psnode->x;
         int tmp_y = psnode->y;
         psnode->x = prev_x;
         psnode->y = prev_y;
         prev_x = tmp_x;
         prev_y = tmp_y;
+        psnode = psnode->front;
+        if (psnake->dir == STOP) break;
+    }
+}
+
+void draw_snake(SSD1306_t *dev, struct Snake *psnake, int old_tail_y, int old_tail_x) {
+    if (!psnake || !psnake->head) return;
+    char* sign = "*";
+    if (psnake->dir != STOP) {
+        ssd1306_display_text_box1(dev, old_tail_y, old_tail_x, " ", 1, 1, false, 0);
+    }
+    struct SnakeNode *psnode = GetNextNode(psnake);
+
+    while (psnode) {
+        ssd1306_display_text_box1(dev, psnode->y, psnode->x, sign, 1, 1, false, 0);
         psnode = psnode->front;
     }
 }
@@ -141,6 +160,7 @@ void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
     adc_oneshot_read(joystick.adc_handle, ADC_Y_CHANNEL, &y);
     int button = gpio_get_level(BTN_GPIO);
 
+    // Также блок на разворот на 180 градусов
     if (y <= 3400 && (psnake->dir != DIR_UP)) {
         psnake->dir = DIR_DOWN;
     }
@@ -157,11 +177,22 @@ void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
         psnake->dir = STOP;
     }
 
-    ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
+    // ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
 }
 
+void draw_food(SSD1306_t *dev) {
+
+    char *food = "@";
+    int x = random() % (128 - 2) + 1;
+    int y = random() % (64 - 2) + 1;
+    ssd1306_display_text_box1(dev, y, x, food, 1, 1, false, 0);
+    ESP_LOGI("Random food", "X=%d Y=%d\n", x, y);
+}
+
+bool food_is_here()
+
 void app_main(void) {
-    char* sign = "S";
+    srandom((unsigned)time(NULL));
     SSD1306_t dev = {0};
     i2c_master_init(&dev, 21, 22, -1);
     ssd1306_init(&dev, 128, 64);
@@ -169,12 +200,25 @@ void app_main(void) {
     JoystickHandle joystick = joystick_conf();
 
     struct Snake *psnake = initsnake();
+    if (!psnake || !psnake->head) {
+        ESP_LOGI("SNAKE", "Can't initialize snake head");
+        return;
+    }
 
     while (1) {
+        
+        draw_food(&dev);
         joystick_moving(psnake, joystick);
+
+        struct SnakeNode *psnode = GetNextNode(psnake);
+        int old_tail_x = GetTail(psnake)->x;
+        int old_tail_y = GetTail(psnake)->y;
         move_snake(psnake);
-        ssd1306_clear_screen(&dev, 0);
-        draw_snake(&dev, psnake, sign);
+        draw_snake(&dev, psnake, old_tail_y, old_tail_x);
+
+        // ssd1306_display_text_box1(&dev, psnode->y, psnode->x, sign, 1, 1, false, 0);
+        // ssd1306_display_text_box1(&dev, old_tail_y, old_tail_x, " ", 1, 1, false, 0);
+        // psnode = psnode->front;
 
         vTaskDelay(pdMS_TO_TICKS(500));
     }
