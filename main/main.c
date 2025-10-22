@@ -83,7 +83,6 @@ struct Snake* initsnake() {
     return psnake;
 }
 
-
 void move_snake(struct Snake *psnake) {
     struct SnakeNode *psnode = GetNextNode(psnake);
     int prev_x = psnode->x;
@@ -180,16 +179,20 @@ void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
     // ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
 }
 
-void draw_food(SSD1306_t *dev) {
-
+void draw_food(SSD1306_t *dev, struct Food *apple) {
     char *food = "@";
-    int x = random() % (128 - 2) + 1;
-    int y = random() % (64 - 2) + 1;
-    ssd1306_display_text_box1(dev, y, x, food, 1, 1, false, 0);
-    ESP_LOGI("Random food", "X=%d Y=%d\n", x, y);
+    if (!food_is_here) {
+        apple->x = random() % (128 - 2) + 1;
+        apple->y = random() % (64 - 2) + 1;
+        ssd1306_display_text_box1(dev, apple->y, apple->x, food, 1, 1, false, 0);
+        ESP_LOGI("Random food", "X=%d Y=%d\n", apple->x, apple->y);
+    }
 }
 
-bool food_is_here()
+bool food_is_here(struct Snake *psnake, struct Food *apple) {
+   if (psnake->head->x == apple->x && psnake->head->y == apple->y) return false;
+   return true;
+}
 
 void app_main(void) {
     srandom((unsigned)time(NULL));
