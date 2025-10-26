@@ -98,6 +98,7 @@ void move_snake(struct Snake *psnake) {
 
     psnode = psnode->front;
     while (psnode) {
+        if (psnake->dir == STOP) break;
         int tmp_x = psnode->x;
         int tmp_y = psnode->y;
         psnode->x = prev_x;
@@ -105,7 +106,6 @@ void move_snake(struct Snake *psnake) {
         prev_x = tmp_x;
         prev_y = tmp_y;
         psnode = psnode->front;
-        if (psnake->dir == STOP) break;
     }
 }
 
@@ -179,20 +179,25 @@ void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
     // ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
 }
 
-void draw_food(SSD1306_t *dev, struct Food *apple) {
+void draw_food(SSD1306_t *dev, struct Food *apple, bool food_is_here) {
     char *food = "@";
-    if (!food_is_here) {
-        apple->x = random() % (128 - 2) + 1;
-        apple->y = random() % (64 - 2) + 1;
+    do {
+        apple->x = (random() % (128 / 8)) * 8;
+        apple->y = random() % 8;
         ssd1306_display_text_box1(dev, apple->y, apple->x, food, 1, 1, false, 0);
-        ESP_LOGI("Random food", "X=%d Y=%d\n", apple->x, apple->y);
-    }
+    } while (food_is_here == false);
 }
 
 bool food_is_here(struct Snake *psnake, struct Food *apple) {
-   if (psnake->head->x == apple->x && psnake->head->y == apple->y) return false;
-   return true;
+    struct SnakeNode *pnode = GetNextNode(psnake);
+
+    for (int i = 0; i < psnake->length; ++i, pnode = pnode->front) {
+        if (psnake->head->x == apple->x && psnake->head->y == apple->y) return false;
+    }
+    return true;
 }
+
+// void snake_growup(struct Snake *psnake, )
 
 void app_main(void) {
     srandom((unsigned)time(NULL));
@@ -202,15 +207,17 @@ void app_main(void) {
     ssd1306_clear_screen(&dev, 0);
     JoystickHandle joystick = joystick_conf();
 
+    struct Food apple;
     struct Snake *psnake = initsnake();
     if (!psnake || !psnake->head) {
         ESP_LOGI("SNAKE", "Can't initialize snake head");
         return;
     }
+    //food_is_here(psnake, &apple);
 
     while (1) {
         
-        draw_food(&dev);
+        draw_food(&dev, &apple, food_is_here(psnake, &apple));
         joystick_moving(psnake, joystick);
 
         struct SnakeNode *psnode = GetNextNode(psnake);
