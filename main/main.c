@@ -3,6 +3,7 @@
 #include "esp_adc/adc_oneshot.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_random.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -181,34 +182,39 @@ void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
 }
 
 bool food_is_here(struct Snake *psnake, struct Food *apple) {
-    struct SnakeNode *psnode = GetNextNode(psnake);
+    struct SnakeNode *psnode = psnake->head;
 
     printf("spawn try: %d %d\n", apple->x, apple->y);
     printf("spawn snake: %d %d\n", psnode->x, psnode->y);
+
     for (int i = 0; i < psnake->length; ++i) {
         if (psnode->x == apple->x && psnode->y == apple->y) {
-            apple->f = true; 
+            apple->f = false;
             return false;
         }
+        psnode = psnode->front;
     }
-    apple->f = false; 
     return true;
 }
 
 void draw_food(SSD1306_t *dev, struct Food *apple, struct Snake *psnake) {
     char *food = "@";
+
+    if (apple->f) {
+        ssd1306_display_text_box1(dev, apple->y, apple->x, food, 1, 1, false, 0);
+        return;
+    }
     do {
         apple->x = (random() % (128 / 8)) * 8;
-        apple->y = (random() % ( 64 / 8)) * 8;
-        //apple->f = true;
+        apple->y = (random() % 8);
     } while (!food_is_here(psnake, apple));
+
+    apple->f = true;
     ssd1306_display_text_box1(dev, apple->y, apple->x, food, 1, 1, false, 0);
 }
 
-// void snake_growup(struct Snake *psnake, )
-
 void app_main(void) {
-    srandom((unsigned)time(NULL));
+    srandom((unsigned) esp_random());
     SSD1306_t dev = {0};
     i2c_master_init(&dev, 21, 22, -1);
     ssd1306_init(&dev, 128, 64);
@@ -230,6 +236,20 @@ void app_main(void) {
         int old_tail_y = GetTail(psnake)->y;
         move_snake(psnake);
         draw_snake(&dev, psnake, old_tail_y, old_tail_x);
+
+        if (psnake->head->x == apple.x && psnake->head->y == apple.y) {
+            apple.f = false;
+            // grow_snake(psnake) - на будущее
+        }
+        printf("CHECK head: x=%d y=%d | apple: x=%d y=%d | apple.f=%d\n",
+                psnake->head->x, psnake->head->y, apple.x, apple.y, apple.f);
+
+        if (psnake->head->x == apple.x && psnake->head->y == apple.y) {
+            printf("EAT!\n");
+            apple.f = false;
+        }
+
+
         if (!apple.f) {
             draw_food(&dev, &apple, psnake);
         }
