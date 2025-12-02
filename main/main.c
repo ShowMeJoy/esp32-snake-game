@@ -31,40 +31,43 @@ enum Direction {
     DIR_RIGHT,
     STOP
 };
-struct SnakeNode {
+
+typedef struct SnakeNode {
     int y;
     int x;
     struct SnakeNode *front;
-};
-struct Snake {
+} SnakeNode;
+
+typedef struct {
     int length;
     struct SnakeNode *head;
     struct SnakeNode *tail;
     enum Direction dir;
-};
+} Snake;
+
 struct Food {
     int x;
     int y;
     bool f;
 };
 
-struct SnakeNode* GetTail(struct Snake *psnake) {
-    struct SnakeNode *psnode = psnake->head;
+SnakeNode* GetTail(Snake *psnake) {
+    SnakeNode *psnode = psnake->head;
     while(psnode && psnode->front) psnode = psnode->front;
     return psnode;
 }
 
-struct Snake* initsnake() {
-    struct Snake *psnake = malloc(sizeof(struct Snake));
+Snake* initsnake() {
+    Snake *psnake = malloc(sizeof(Snake));
     if (!psnake) return NULL;
 
     psnake->dir = DIR_RIGHT;
     psnake->length = 4;
 
-    struct SnakeNode *n1 = malloc(sizeof(struct SnakeNode));
-    struct SnakeNode *n2 = malloc(sizeof(struct SnakeNode));
-    struct SnakeNode *n3 = malloc(sizeof(struct SnakeNode));
-    struct SnakeNode *n4 = malloc(sizeof(struct SnakeNode));
+    SnakeNode *n1 = malloc(sizeof(SnakeNode));
+    SnakeNode *n2 = malloc(sizeof(SnakeNode));
+    SnakeNode *n3 = malloc(sizeof(SnakeNode));
+    SnakeNode *n4 = malloc(sizeof(SnakeNode));
     if (!n1 || !n2 || !n3 || !n4) {
         free(n1); free(n2); free(n3); free(n4); free(psnake);
         return NULL;
@@ -85,16 +88,16 @@ struct Snake* initsnake() {
     return psnake;
 }
 
-void move_snake(struct Snake *psnake) {
-    struct SnakeNode *psnode = GetNextNode(psnake);
+void move_snake(Snake *psnake) {
+    SnakeNode *psnode = GetNextNode(psnake);
     int prev_x = psnode->x;
     int prev_y = psnode->y;
 
     switch (psnake->dir) {
-        case DIR_UP: psnode->y += 1; break;
-        case DIR_DOWN: psnode->y -= 1; break;
-        case DIR_LEFT: psnode->x -= 8; break;
-        case DIR_RIGHT: psnode->x += 8; break;
+        case DIR_UP: psnode->y += 1; psnake->head->y += 1; break;
+        case DIR_DOWN: psnode->y -= 1; psnake->head->y -= 1; break;
+        case DIR_LEFT: psnode->x -= 8; psnake->head->x -= 8; break;
+        case DIR_RIGHT: psnode->x += 8; psnake->head->x += 8; break;
         case STOP: break;
     }    
 
@@ -111,13 +114,13 @@ void move_snake(struct Snake *psnake) {
     }
 }
 
-void draw_snake(SSD1306_t *dev, struct Snake *psnake, int old_tail_y, int old_tail_x) {
+void draw_snake(SSD1306_t *dev, Snake *psnake, int old_tail_y, int old_tail_x) {
     if (!psnake || !psnake->head) return;
     char* sign = "*";
     if (psnake->dir != STOP) {
         ssd1306_display_text_box1(dev, old_tail_y, old_tail_x, " ", 1, 1, false, 0);
     }
-    struct SnakeNode *psnode = GetNextNode(psnake);
+    SnakeNode *psnode = GetNextNode(psnake);
 
     while (psnode) {
         ssd1306_display_text_box1(dev, psnode->y, psnode->x, sign, 1, 1, false, 0);
@@ -125,7 +128,7 @@ void draw_snake(SSD1306_t *dev, struct Snake *psnake, int old_tail_y, int old_ta
     }
 }
 
-typedef struct JoystickHandle {
+typedef struct {
     adc_oneshot_unit_handle_t adc_handle;
 } JoystickHandle;
 
@@ -155,7 +158,7 @@ JoystickHandle joystick_conf(void) {
     return joy;
 }
 
-void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
+void joystick_moving(Snake *psnake, JoystickHandle joystick) {
     int x, y;
     adc_oneshot_read(joystick.adc_handle, ADC_X_CHANNEL, &x);
     adc_oneshot_read(joystick.adc_handle, ADC_Y_CHANNEL, &y);
@@ -181,8 +184,8 @@ void joystick_moving(struct Snake *psnake, JoystickHandle joystick) {
     // ESP_LOGI("JOYSTICK", "X=%d  Y=%d  BTN=%d\n", x, y, button);
 }
 
-bool food_is_here(struct Snake *psnake, struct Food *apple) {
-    struct SnakeNode *psnode = psnake->head;
+bool food_is_here(Snake *psnake, struct Food *apple) {
+    SnakeNode *psnode = psnake->head;
 
     printf("spawn try: %d %d\n", apple->x, apple->y);
     printf("spawn snake: %d %d\n", psnode->x, psnode->y);
@@ -197,7 +200,7 @@ bool food_is_here(struct Snake *psnake, struct Food *apple) {
     return true;
 }
 
-void draw_food(SSD1306_t *dev, struct Food *apple, struct Snake *psnake) {
+void draw_food(SSD1306_t *dev, struct Food *apple, Snake *psnake) {
     char *food = "@";
 
     if (apple->f) {
@@ -213,6 +216,25 @@ void draw_food(SSD1306_t *dev, struct Food *apple, struct Snake *psnake) {
     ssd1306_display_text_box1(dev, apple->y, apple->x, food, 1, 1, false, 0);
 }
 
+SnakeNode* create_node() {
+    SnakeNode *new_node = (SnakeNode*) malloc(sizeof(SnakeNode));
+    if (!new_node) {
+        ESP_LOGI("Node" , "Can't initialize new node");
+        return NULL;
+    }
+    new_node->front = NULL;
+    return new_node;
+}
+
+void grow_snake(Snake *psnake) {
+    SnakeNode *new_node = create_node();
+    SnakeNode *curr = psnake->head;
+    while (curr->front != NULL) {
+        curr = curr->front;
+    }
+    curr->front = new_node;
+}
+
 void app_main(void) {
     srandom((unsigned) esp_random());
     SSD1306_t dev = {0};
@@ -222,7 +244,7 @@ void app_main(void) {
     JoystickHandle joystick = joystick_conf();
 
     struct Food apple = { .f = false};
-    struct Snake *psnake = initsnake();
+    Snake *psnake = initsnake();
     if (!psnake || !psnake->head) {
         ESP_LOGI("SNAKE", "Can't initialize snake head");
         return;
@@ -231,7 +253,7 @@ void app_main(void) {
     while (1) {
         joystick_moving(psnake, joystick);
 
-        struct SnakeNode *psnode = GetNextNode(psnake);
+        //SnakeNode *psnode = GetNextNode(psnake);
         int old_tail_x = GetTail(psnake)->x;
         int old_tail_y = GetTail(psnake)->y;
         move_snake(psnake);
@@ -239,7 +261,7 @@ void app_main(void) {
 
         if (psnake->head->x == apple.x && psnake->head->y == apple.y) {
             apple.f = false;
-            // grow_snake(psnake) - на будущее
+            //grow_snake(psnake);
         }
         printf("CHECK head: x=%d y=%d | apple: x=%d y=%d | apple.f=%d\n",
                 psnake->head->x, psnake->head->y, apple.x, apple.y, apple.f);
@@ -248,7 +270,6 @@ void app_main(void) {
             printf("EAT!\n");
             apple.f = false;
         }
-
 
         if (!apple.f) {
             draw_food(&dev, &apple, psnake);
